@@ -1,0 +1,26 @@
+#holder {
+    position: fixed;
+    z-index: 150;
+}
+
+#results-qa {
+    margin: 75px 0 0 5px;
+}
+
+#main-search {
+    height: 100%;
+    margin: 0 auto;
+}
+
+html, body, #header {
+    height: 100%;
+}
+
+#results-list {
+    margin-top: 10px;
+}
+
+
+#relevant {
+    float: right;
+}

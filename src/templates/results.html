@@ -1,0 +1,49 @@
+{% extends 'index.html' %}
+
+{% block header %}
+<div class="container" id="results-qa">
+<form method="post" class="row align-items-center">
+        <div class="container" >
+                <div class="row justify-content-left">
+                <div class="col col-lg-6">
+                    <input name="query" class="form-control form-control-lg" id="searchbar" type="text"
+                           placeholder="Enter question"
+                            value="{{ request.form['query'] }}" required>
+                </div>
+                <div class="co col-lg-2">
+                    <div class="col auto">
+                    <button type="submit" class="btn btn-primary btn-lg" id="submit-search">Search</button>
+                </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block content %}
+    <ul class="list-group-flush" id="results-list">
+    {% for doc_id, doc in docs %}
+        <li class="list-group-item" id="search-result">
+            <div class="row align-items-center">
+            <div class="col-10">
+            <h2 style=>{{doc_id}}: {{" ".join(doc["title"])}}</h2>
+            <div>Abstract:
+                <div>
+                {{" ".join(doc["abstract"])}}
+                </div>
+            </div>
+            </div>
+            <div class="col-1">
+                <button type="button" id="relevant" class="btn btn-outline-success">
+                    <i class="fa fa-thumbs-up"></i></button>
+            </div>
+                <div class="col-1">
+                <button type="button" id="irrelevant" class="btn btn-outline-danger">
+                    <i class="fa fa-thumbs-down"></i></button>
+            </div>
+            </div>
+        </li>
+    {% endfor %}
+    </ul>
+{% endblock %}
