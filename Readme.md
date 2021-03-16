@@ -12,18 +12,16 @@ portion of it comes directly from a Medium article that is cited in the code.
 There are a lot of pieces to this server so here is my attempt to describe
 the project at a high level. If you just downloaded this folder, there are a few
 scripts to run to set things up. First, install the required packages using `pip install -r requirements.txt`. 
-Next, enter the command `sh setup.sh`
 
-This will create files that serialize the vector representations of all the docs we were given.
+Next, enter the command `sh setup.sh`. This will create files that serialize the vector representations of all the docs we were given.
 Next run `sh run_db.sh`
 
 This will start the database server. Inside the file there is a flag `--no_query_expand` 
 that is set by default. While this flag is set, the search engine will not use
 query expansion. I tried to build a RESTful API for the
-database so development would be easier. Next, in a new terminal window
-run `sh upload_docs.sh`
+database so development would be easier. 
 
-This will upload all the documents to the document database. There are two 
+Next, in a new terminal window run `sh upload_docs.sh`. This will upload all the documents to the document database. There are two 
 <key, value> stores for the documents, both indexed by document id. 
 The first stores the document as a dictionary and the second stores the 
 tfidf vector representation of the document.
