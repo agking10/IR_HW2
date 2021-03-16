@@ -698,7 +698,6 @@ def search_from_precomputed(doc_pairs, query_vec, sim):
     return results
 
 
-
 def experiment_with_query_expansion():
     # Instantiate our query expander, load data
     weights = TermWeights(author=1, title=1, keyword=1, abstract=1)

@@ -31,8 +31,11 @@ if args.query_expand:
 else:
     with open(os.path.join(app.root_path, "obj/docs_tfidf_no_expand.pkl"), "rb") as fp:
         docs_tfidf = pickle.load(fp)
+
 doc_freqs = hw2.compute_doc_freqs_from_dict([j for i, j in docs_tfidf])
 db_path = os.path.join(app.root_path, "db")
+if not os.path.exists(db_path):
+    os.makedirs(db_path)
 # query db stores the results of queries for later use
 query_db_path = os.path.join(db_path, "queries.db")
 # query map is a map of queries to vectors

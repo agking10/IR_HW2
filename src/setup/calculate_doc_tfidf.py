@@ -5,6 +5,9 @@ import hw2
 from tqdm import tqdm
 import pickle
 
+if not os.path.exists("../obj"):
+    os.makedirs("../obj")
+
 if __name__ == "__main__":
     with open("../obj/docs_tf.pkl", "rb") as fp:
         docs_tf = pickle.load(fp)

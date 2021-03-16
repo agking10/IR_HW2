@@ -17,7 +17,9 @@ Next, enter the command `sh setup.sh`
 This will create files that serialize the vector representations of all the docs we were given.
 Next run `sh run_db.sh`
 
-This will start the database server. I tried to build a RESTful API for the
+This will start the database server. Inside the file there is a flag `--no_query_expand` 
+that is set by default. While this flag is set, the search engine will not use
+query expansion. I tried to build a RESTful API for the
 database so development would be easier. Next, in a new terminal window
 run `sh upload_docs.sh`
 
@@ -72,7 +74,8 @@ When a user clicks the like button on a search result, the webserver makes a req
 the database server that includes the query that generated the result (original or matched) and
 the document id of the result. The query vector stored in query_map.db is then 
 modified according to the Rocchio algorithm and new search results are computed and stored
-in queries.db. 
+in queries.db. The function that actually carries out the algorithm is called `update_query`
+in api.py.
 
 An important fact about the implementation of this is that the webserver keeps track
 of the state of each button so that the user can change her selection 
@@ -86,4 +89,10 @@ A class I implemented that made this easier is the `DictVector` class from dict_
 extends the dictionary class to support vector addition and scalar multiplication.
 
 To test this feature out, you can click a few like/dislike buttons then reenter
-the same search and see how the results are affected.
+the same search and see how the results are affected. In the file hw2, I added 
+a benchmarking experiment for query expansion. Interestingly, it made the performance
+of the search worse. I measured an r_norm of 0.85 with expansion vs. 0.93 without and a p_norm
+of 0.49 compared with 0.72. I believe this is due to the fact that the synonyms
+were taken from Wordnet which is an extremely general purpose english language 
+database, but these documents are from a highly specific field, so query expansion would 
+just have the effect of making everything more similar to everything else.
