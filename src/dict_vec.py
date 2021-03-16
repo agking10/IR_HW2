@@ -1,5 +1,6 @@
 import math
 
+
 class DictVector(dict):
     """
     Extension of a dictionary with vector addition and

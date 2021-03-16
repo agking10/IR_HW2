@@ -1,3 +1,3 @@
 #!/usr/bin/bash
 
-python src/api.py
+python src/app.py

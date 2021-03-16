@@ -1,5 +1,4 @@
 import hw2
-import torch
 from sqlitedict import SqliteDict
 from flask import Flask, request, jsonify, Response
 import json
@@ -9,9 +8,8 @@ from dict_vec import DictVector
 
 
 """
-This will be our database API. Right now we are going to simply upload 
-everything to memory when the server starts but maybe in the future it'll
-be upgraded to a persistent DB.
+This will be our database API. Right now we still have somefiles that have to be loaded into memory
+when the server starts but maybe in the future everything will be persistent.
 
 Run this server on port 6000
 """

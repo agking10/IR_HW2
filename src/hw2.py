@@ -1,7 +1,7 @@
 import itertools
 from collections import Counter, defaultdict
 from typing import Dict, List, NamedTuple
-
+from dict_vec import DictVector
 import numpy as np
 from numpy.linalg import norm
 from nltk.stem.snowball import SnowballStemmer
@@ -12,6 +12,7 @@ import nltk
 from nltk.corpus import stopwords as nltk_stopwords
 from nltk.corpus import wordnet as wn
 import re
+from tqdm import tqdm
 
 ### File IO and processing
 
@@ -466,6 +467,10 @@ def compute_doc_freqs_from_dict(docs: List[Document]):
     return freq
 
 
+def tokenizer(sentence):
+    return word_tokenize(sentence)
+
+
 class QueryExpander:
     """
     This class can compute the term frequencies for expanded queries
@@ -479,9 +484,6 @@ class QueryExpander:
         'RB': [wn.ADV],
         'VB': [wn.VERB]
         }
-
-    def tokenizer(self, sentence):
-        return word_tokenize(sentence)
 
     def pos_tag_converter(self, nltk_pos_tag):
         root_tag = nltk_pos_tag[0:2]
@@ -502,7 +504,7 @@ class QueryExpander:
         return synsets
 
     def generate_tokens(self, sentence):
-        tokens = self.tokenizer(sentence)
+        tokens = tokenizer(sentence)
         tokens = pos_tagger(tokens)
         tokens = remove_stopwords_nltk(tokens)
         synsets = self.get_synsets(tokens)
@@ -520,6 +522,7 @@ class QueryExpander:
         sentence = s.join(words)
         return self.generate_tokens(sentence)
 
+
     def compute_tf(self, doc: Document, weights: list):
         vec = defaultdict(float)
         for word in doc.author:
@@ -536,12 +539,16 @@ class QueryExpander:
         return dict(vec)
 
 
+# Converts a query string to document
 def query2doc(query: str) -> Document:
     doc = Document(-1, [], [], [], word_tokenize(query))
     return doc
 
 
 class QueryProcessor:
+    """
+    This class can transform a string or document into a sparse tfidf vector
+    """
     def __init__(self, term_weights, sim_func=cosine_sim, query_expand=True):
         self.sim_func = sim_func
         self.query_expander = None
@@ -558,7 +565,7 @@ class QueryProcessor:
         N = doc_freqs.get_num_docs()
         for word in tf.keys():
             tf_idf[word] = tf[word] * np.log(N / (1 + doc_freqs[word]))
-        return tf_idf
+        return DictVector(tf_idf)
 
     def tfidf_from_query(self, query, doc_freqs):
         doc = query2doc(query)
@@ -569,7 +576,7 @@ class QueryProcessor:
         N = doc_freqs.get_num_docs()
         for word in tf.keys():
             tf_idf[word] = tf[word] * np.log(N / (1 + doc_freqs[word]))
-        return tf_idf
+        return DictVector(tf_idf)
 
 
 
@@ -678,5 +685,47 @@ def search_debug(docs, query, relevant, doc_vectors, query_vec, sim, verbose=Tru
     return results
 
 
+def experiment_with_query_expansion():
+    # Instantiate our query expander, load data
+    weights = TermWeights(author=1, title=1, keyword=1, abstract=1)
+    processer = QueryProcessor(weights)
+    docs = read_docs('../data/cacm.raw')
+    queries = read_docs('../data/query.raw')
+    rels = read_rels('../data/query.rels')
+
+    # Compute term freqs for all docs
+    docs_tf = [(doc.doc_id, processer.query_expander.compute_tf(doc, weights)) for doc in tqdm(docs)]
+    # Compute doc_freqs using term freqs as vocabulary
+    doc_freqs = compute_doc_freqs_from_dict([j for i, j in docs_tf])
+
+    # Compute tfidf of all docs
+    doc_vectors = [(pair[0], processer.tfidf_from_tf(pair[1], doc_freqs))
+                  for pair in tqdm(docs_tf)]
+
+    # Compute tfidf of all queries
+    query_vectors = [processer.tfidf_from_doc(query, doc_freqs) for query in queries]
+
+    metrics = []
+    ids = [query.doc_id for query in queries]
+    queries = zip(ids, query_vectors)
+    for id, query_vec in queries:
+        results = search(doc_vectors, query_vec, cosine_sim)
+
+        rel = rels[id]
+        metrics.append([
+            precision_at(0.25, results, rel),
+            precision_at(0.5, results, rel),
+            precision_at(0.75, results, rel),
+            precision_at(1.0, results, rel),
+            mean_precision1(results, rel),
+            mean_precision2(results, rel),
+            norm_recall(results, rel),
+            norm_precision(results, rel)
+        ])
+    averages = [f'{np.mean([metric[i] for metric in metrics]):.4f}'
+                for i in range(len(metrics[0]))]
+    print(*averages, sep='\t')
+
 if __name__ == '__main__':
-    experiment()
+    #experiment()
+    experiment_with_query_expansion()
