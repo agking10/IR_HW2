@@ -21,6 +21,6 @@ html, body, #header {
 }
 
 
-#relevant {
-    float: right;
+.relevant, .irrelevant {
+    width: 38px;
 }

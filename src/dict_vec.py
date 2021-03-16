@@ -1,3 +1,4 @@
+import math
 
 class DictVector(dict):
     """
@@ -11,7 +12,7 @@ class DictVector(dict):
                 self[key] = value
 
     def __add__(self, other):
-        result = {}
+        result = DictVector()
         keys = set(self.keys()).union(set(other.keys()))
         for key in keys:
             result[key] = self.get(key, 0) + other.get(key, 0)
@@ -27,15 +28,28 @@ class DictVector(dict):
         return result
 
     def __mul__(self, other):
-        assert isinstance(other, int), "Only scalar multiplication is defined"
         result = self.copy()
         for key in self.keys():
             result[key] *= other
         return result
 
     def __rmul__(self, other):
-        assert isinstance(other, int), "Only scalar multiplication is defined"
         result = self.copy()
         for key in self.keys():
             result[key] *= other
         return result
+
+    def empty(self):
+        return len(self.keys()) == 0
+
+    def normalize(self):
+        if self.empty():
+            return
+        norm_sum = 0
+        for val in self.values():
+            norm_sum += val**2
+        Z = math.sqrt(norm_sum)
+        if Z == 0:
+            return
+        for key in self.keys():
+            self[key] /= Z

@@ -7,7 +7,6 @@ import os
 import pickle
 from dict_vec import DictVector
 
-embedder = hw2.Embedder()
 
 """
 This will be our database API. Right now we are going to simply upload 
@@ -27,12 +26,26 @@ with open(os.path.join(app.root_path, "obj/docs_tfidf.pkl"), "rb") as fp:
 doc_freqs = hw2.compute_doc_freqs_from_dict([j for i, j in docs_tfidf])
 db_path = os.path.join(app.root_path, "db")
 # query db stores the results of queries for later use
-query_db = SqliteDict(os.path.join(db_path, "queries.db"))
 query_db_path = os.path.join(db_path, "queries.db")
 # query map is a map of queries to vectors
-query_map = SqliteDict(os.path.join(db_path, "query_map.db"))
 query_map_path = os.path.join(db_path, "query_map.db")
 doc_vecs_db_path = os.path.join(db_path, "doc_vecs.db")
+
+# Upload all doc vectors to db
+doc_vec_db = SqliteDict(doc_vecs_db_path)
+for doc_id, doc_vec in docs_tfidf:
+    try:
+        vec = doc_vec_db[doc_id]
+    except KeyError:
+        doc_vec_db[doc_id] = DictVector(doc_vec)
+doc_vec_db.commit()
+doc_vec_db.close()
+
+
+# Convert document to vector, then upload
+def upload_doc_vec(doc):
+    #TODO Maybe implement this if time permits
+    return
 
 
 @app.route("/docs", methods=["POST"])
@@ -47,6 +60,12 @@ def upload_doc():
     doc_db[data["doc_id"]] = doc
     doc_db.commit()
     doc_db.close()
+    doc_vec_db = SqliteDict(doc_vecs_db_path)
+    try:
+        doc_vec_db[data["doc_id"]]
+    except KeyError:
+        upload_doc_vec(doc)
+    doc_vec_db.close()
     return "Success", 201
 
 
@@ -76,8 +95,20 @@ def get_neighbors():
     data = json.loads(request.data)
     query = data['query']
     k = data['k']
-    results = get_nearest(query, k=k)
-    return jsonify(results)
+    closest = search_for_query(query)
+    if closest != "":
+        query_db = SqliteDict(query_db_path)
+        results = query_db[closest]
+        if len(results) > k:
+            results = results[:k]
+        query_db.close()
+        results = get_docs_from_list(results)
+        new_query = closest
+    else:
+        results = get_nearest(query, k=k)
+        upload_query(query, results)
+        new_query = query
+    return jsonify({"results": results, "query": new_query})
 
 
 def search(doc_pairs, query_vec, sim):
@@ -99,6 +130,13 @@ def query2vec(query):
     return processed_query
 
 
+def get_docs_from_list(doc_list):
+    out = {}
+    for doc in doc_list:
+        out[doc] = json.loads(get_doc(doc).data)
+    return out
+
+
 def get_nearest(query: str, k=20) -> dict:
     # TODO implement nearest neighbor search by query
     processed_query = query2vec(query)
@@ -111,28 +149,36 @@ def get_nearest(query: str, k=20) -> dict:
     return out
 
 
-# similarity metric for query strings
-def query_sim(q1: str, q2: str):
-    return 1
+def sim_query(q1: str, q2: str):
+    return hw2.cosine_sim(query2vec(q1), query2vec(q2))
 
 
 # Returns similar query if it exists, empty string if there is none
-def search_for_query(sim_thresh=0.8) -> str:
-    query_db = SqliteDict(os.path.join(db_path, "queries.db"))
-    data = json.loads(request.data)
-    query = data['query']
+def search_for_query(query, sim_thresh=0.8) -> str:
+    query_map = SqliteDict(query_map_path)
     max_sim_query = ""
     max_sim = 0
-    for key in query_db.keys():
-        sim = query_sim(query, key)
+    for key in query_map.keys():
+        sim = sim_query(key, query)
         if sim > max_sim:
             max_sim = sim
             max_sim_query = key
-    query_db.close()
+    query_map.close()
     if max_sim > sim_thresh:
         return max_sim_query
     else:
         return ""
+
+
+def set_query_results(query, k=20):
+    query_map = SqliteDict(query_map_path)
+    query_vec = query_map[query]
+    query_map.close()
+    query_db = SqliteDict(query_db_path)
+    results = search(docs_tfidf, query_vec, hw2.cosine_sim)
+    query_db[query] = results[:k]
+    query_db.commit()
+    query_db.close()
 
 
 # Puts a new query in database with results list.
@@ -155,14 +201,117 @@ def upload_query(query, results):
     return flag
 
 
-def update_query(query, relevant=None, irrelevant=None):
+def update_query(query, relevant=None, irrelevant=None, alpha=0.9, beta=0.5, gamma=0.1):
+    """
+    Update query in our db using rocchio algorithm. Note, the query string is not updated but
+    the results in the results db are updated.
+    :param query: query string
+    :param relevant: list of doc_ids
+    :param irrelevant: list of doc_ids
+    :param alpha: weight of original query
+    :param beta: weight of relevant docs
+    :param gamma: weight or irrelevant docs
+    :return: True if successful, False if unsuccessful
+    """
     if relevant is None:
         relevant = []
     if irrelevant is None:
         irrelevant = []
     assert (query != "")
+    query_map = SqliteDict(query_map_path)
+    try:
+        q0 = query_map[query]
+    except KeyError:
+        # Can't update queries we've never seen
+        query_map.close()
+        return False
+    if not isinstance(q0, DictVector):
+        q0 = DictVector(q0)
+    doc_vec_db = SqliteDict(doc_vecs_db_path)
+    Nr = len(relevant)
+    for doc_id in relevant:
+        try:
+            doc_vec = doc_vec_db[doc_id]
+            if not isinstance(doc_vec, DictVector):
+                doc_vec = DictVector(doc_vec)
+        except KeyError:
+            continue
+        q0 = q0 + (beta / Nr) * doc_vec
+    Ni = len(irrelevant)
+    for doc_id in irrelevant:
+        try:
+            doc_vec = doc_vec_db[doc_id]
+            if not isinstance(doc_vec, DictVector):
+                doc_vec = DictVector(doc_vec)
+        except KeyError:
+            continue
+        q0 = q0 - (gamma / Ni) * doc_vec
+    query_map[query] = q0
+    query_map.commit()
+    set_query_results(query)
 
 
+def undo_update(query, relevant=None, irrelevant=None, alpha=0.9, beta=0.5, gamma=0.1):
+    """
+    Method for undoing an update if a user decides a post that was relevant isn't actually relevant.
+    :param query: query string
+    :param relevant: list of doc_ids
+    :param irrelevant: list of doc_ids
+    :param alpha: weight of original query
+    :param beta: weight of relevant docs
+    :param gamma: weight or irrelevant docs
+    :return: True if successful, False if unsuccessful
+    """
+    if relevant is None:
+        relevant = []
+    if irrelevant is None:
+        irrelevant = []
+    assert (query != "")
+    query_map = SqliteDict(query_map_path)
+    try:
+        q0 = query_map[query]
+    except KeyError:
+        # Can't update queries we've never seen
+        query_map.close()
+        return False
+    if not isinstance(q0, DictVector):
+        q0 = DictVector(q0)
+    doc_vec_db = SqliteDict(doc_vecs_db_path)
+    Nr = len(relevant)
+    for doc_id in relevant:
+        try:
+            doc_vec = doc_vec_db[doc_id]
+            if not isinstance(doc_vec, DictVector):
+                doc_vec = DictVector(doc_vec)
+        except KeyError:
+            continue
+        q0 = q0 - (beta / Nr) * doc_vec
+    Ni = len(irrelevant)
+    for doc_id in irrelevant:
+        try:
+            doc_vec = doc_vec_db[doc_id]
+            if not isinstance(doc_vec, DictVector):
+                doc_vec = DictVector(doc_vec)
+        except KeyError:
+            continue
+        q0 = q0 + (gamma / Ni) * doc_vec
+    query_map[query] = q0
+    query_map.commit()
+    set_query_results(query)
+
+
+@app.route('/query/update', methods=["POST"])
+def relevance_feedback():
+    data = json.loads(request.data)
+    relevant = data["relevant"]
+    irrelevant = data["irrelevant"]
+    undo = data["undo"]
+    query = data["query"]
+    if undo == "TRUE":
+        undo_update(query, relevant=relevant, irrelevant=irrelevant)
+    else:
+        update_query(query, relevant, irrelevant)
+    return Response(status=201)
 
 
 if __name__ == "__main__":
