@@ -13,6 +13,7 @@ from nltk.corpus import stopwords as nltk_stopwords
 from nltk.corpus import wordnet as wn
 import re
 from tqdm import tqdm
+import pickle
 
 ### File IO and processing
 
@@ -685,6 +686,19 @@ def search_debug(docs, query, relevant, doc_vectors, query_vec, sim, verbose=Tru
     return results
 
 
+def search_from_precomputed(doc_pairs, query_vec, sim):
+    """
+    Linear search through documents. doc_pairs must be a tuple list of
+    (<doc_id>, <sparse_doc_vector>) tuples
+    """
+    results_with_score = [(doc_id, sim(query_vec, doc_vec))
+                    for doc_id, doc_vec in doc_pairs]
+    results_with_score = sorted(results_with_score, key=lambda x: -x[1])
+    results = [x[0] for x in results_with_score]
+    return results
+
+
+
 def experiment_with_query_expansion():
     # Instantiate our query expander, load data
     weights = TermWeights(author=1, title=1, keyword=1, abstract=1)
@@ -694,13 +708,14 @@ def experiment_with_query_expansion():
     rels = read_rels('../data/query.rels')
 
     # Compute term freqs for all docs
-    docs_tf = [(doc.doc_id, processer.query_expander.compute_tf(doc, weights)) for doc in tqdm(docs)]
+    #docs_tf = [(doc.doc_id, processer.query_expander.compute_tf(doc, weights)) for doc in tqdm(docs)]
     # Compute doc_freqs using term freqs as vocabulary
-    doc_freqs = compute_doc_freqs_from_dict([j for i, j in docs_tf])
 
     # Compute tfidf of all docs
-    doc_vectors = [(pair[0], processer.tfidf_from_tf(pair[1], doc_freqs))
-                  for pair in tqdm(docs_tf)]
+    with open("obj/docs_tfidf.pkl", "rb") as fp:
+        doc_vectors = pickle.load(fp)
+
+    doc_freqs = compute_doc_freqs_from_dict([j for i, j in doc_vectors])
 
     # Compute tfidf of all queries
     query_vectors = [processer.tfidf_from_doc(query, doc_freqs) for query in queries]
@@ -709,7 +724,7 @@ def experiment_with_query_expansion():
     ids = [query.doc_id for query in queries]
     queries = zip(ids, query_vectors)
     for id, query_vec in queries:
-        results = search(doc_vectors, query_vec, cosine_sim)
+        results = search_from_precomputed(doc_vectors, query_vec, cosine_sim)
 
         rel = rels[id]
         metrics.append([

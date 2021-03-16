@@ -5,6 +5,7 @@ import json
 import os
 import pickle
 from dict_vec import DictVector
+import argparse
 
 
 """
@@ -14,13 +15,22 @@ when the server starts but maybe in the future everything will be persistent.
 Run this server on port 6000
 """
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--no_query_expand", dest="query_expand", action="store_false")
+parser.set_defaults(query_expand=True)
+args = parser.parse_args()
+
 # Load precomputed tfidf kernel for all documents
 weights = hw2.TermWeights(author=1, title=1, keyword=1, abstract=1)
-processer = hw2.QueryProcessor(weights)
+processer = hw2.QueryProcessor(weights, query_expand=args.query_expand)
 
 app = Flask(__name__)
-with open(os.path.join(app.root_path, "obj/docs_tfidf.pkl"), "rb") as fp:
-    docs_tfidf = pickle.load(fp)
+if args.query_expand:
+    with open(os.path.join(app.root_path, "obj/docs_tfidf.pkl"), "rb") as fp:
+        docs_tfidf = pickle.load(fp)
+else:
+    with open(os.path.join(app.root_path, "obj/docs_tfidf_no_expand.pkl"), "rb") as fp:
+        docs_tfidf = pickle.load(fp)
 doc_freqs = hw2.compute_doc_freqs_from_dict([j for i, j in docs_tfidf])
 db_path = os.path.join(app.root_path, "db")
 # query db stores the results of queries for later use
