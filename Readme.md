@@ -7,7 +7,7 @@ For this assignment, I chose to implement extensions 1 and 12 (with a little bit
 of extension 6. That is, I chose to implement a full web server search engine
 and the SMART Rocchio algorithm for relevance feedback. I say I did a little
 bit of extension 6 because I did implement query expansion but a significant 
-portion of it comes directly from a Medium article.
+portion of it comes directly from a Medium article that is cited in the code.
 
 There are a lot of pieces to this server so here is my attempt to describe
 the project at a high level. If you just downloaded this folder, there are a few
